@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b5cab">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Consulta de Clientes</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#16202a;background:#f3f6f9}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh}
+header{background:#0b5cab;color:white;padding:22px 18px 28px;border-radius:0 0 24px 24px}
+header .tag{font-size:12px;opacity:.82;text-transform:uppercase;letter-spacing:.08em}
+header h1{margin:6px 0 4px;font-size:25px}
+header p{margin:0;opacity:.9;font-size:14px}
+main{max-width:620px;margin:-14px auto 0;padding:0 14px 30px}
+.panel{background:white;border-radius:18px;box-shadow:0 8px 25px rgba(25,50,75,.10);padding:16px}
+.search{display:flex;gap:8px}
+input{width:100%;min-height:50px;border:1px solid #cbd5df;border-radius:13px;padding:0 15px;font-size:17px;outline:none}
+input:focus{border-color:#0b5cab;box-shadow:0 0 0 3px rgba(11,92,171,.12)}
+button,.action{min-height:50px;border:0;border-radius:13px;padding:0 17px;font-size:16px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.primary{background:#0b5cab;color:white}
+.secondary{background:#eaf2fb;color:#0b5cab}
+.hint{font-size:12px;color:#64748b;margin:10px 2px 0}
+#status{margin-top:14px}
+.result{margin-top:14px;border-top:1px solid #e7edf3;padding-top:15px}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#718096;margin-bottom:3px}
+.value{font-size:16px;font-weight:650;overflow-wrap:anywhere}
+.client-name{font-size:22px;line-height:1.15;margin-bottom:15px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.item{background:#f7f9fb;border-radius:12px;padding:11px}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+.full{grid-column:1/-1}
+.empty{text-align:center;padding:24px 8px;color:#64748b}
+.error{background:#fff3f3;border:1px solid #ffd3d3;color:#a51d1d;padding:12px;border-radius:12px;font-size:14px}
+.small{font-size:12px;color:#64748b;margin-top:12px;line-height:1.4}
+@media(max-width:390px){.grid,.actions{grid-template-columns:1fr}.search{flex-direction:column}.full{grid-column:auto}}
+</style>
+</head>
+<body>
+<header>
+  <div class="tag">Herramienta para gestores</div>
+  <h1>Consulta de cliente</h1>
+  <p>Ingresa el código y consulta transportista, teléfono y ubicación.</p>
+</header>
+<main>
+  <section class="panel">
+    <form id="form" class="search" autocomplete="off">
+      <input id="codigo" inputmode="numeric" pattern="[0-9]*" placeholder="Código del cliente" aria-label="Código del cliente">
+      <button class="primary" type="submit">Buscar</button>
+    </form>
+    <div class="hint">Ejemplo: 57640</div>
+    <div id="status" aria-live="polite"></div>
+    <div id="resultado"></div>
+    <div class="small">La información corresponde a la base cargada en la aplicación. Si se actualiza el Excel, debe generarse una nueva versión de la app.</div>
+  </section>
+</main>
+<script src="data.js"></script>
+<script>
+(function(){
+  const form=document.getElementById('form');
+  const input=document.getElementById('codigo');
+  const result=document.getElementById('resultado');
+  const status=document.getElementById('status');
+  const data=Array.isArray(window.CLIENTES)?window.CLIENTES:[];
+  const byCode=new Map(data.map(x=>[String(x.codigo).trim(),x]));
+
+  function esc(v){
+    return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+  function search(){
+    const code=input.value.trim();
+    result.innerHTML='';
+    status.innerHTML='';
+    if(!code){
+      status.innerHTML='<div class="error">Ingresa un código de cliente.</div>';
+      input.focus(); return;
+    }
+    const x=byCode.get(code);
+    if(!x){
+      status.innerHTML='<div class="error">No se encontró el cliente <b>'+esc(code)+'</b>.</div>';
+      return;
+    }
+    status.innerHTML='<div class="small">Cliente encontrado.</div>';
+    const hasCoords=Number.isFinite(x.latitud)&&Number.isFinite(x.longitud);
+    const mapUrl=hasCoords ? 'https://www.google.com/maps?q='+encodeURIComponent(x.latitud+','+x.longitud) : '';
+    const tel=(x.telefono||'').replace(/\D/g,'');
+    result.innerHTML=`
+      <div class="result">
+        <div class="label">Código</div>
+        <div class="value" style="margin-bottom:10px">${esc(x.codigo)}</div>
+        <div class="label">Cliente</div>
+        <div class="value client-name">${esc(x.cliente||'Sin nombre')}</div>
+        <div class="grid">
+          <div class="item"><div class="label">Transportista</div><div class="value">${esc(x.transportista||'No registrado')}</div></div>
+          <div class="item"><div class="label">Teléfono</div><div class="value">${esc(x.telefono||'No registrado')}</div></div>
+          <div class="item full"><div class="label">Dirección</div><div class="value">${esc(x.direccion||'No registrada')}</div></div>
+          <div class="item"><div class="label">Latitud</div><div class="value">${hasCoords?esc(x.latitud):'No disponible'}</div></div>
+          <div class="item"><div class="label">Longitud</div><div class="value">${hasCoords?esc(x.longitud):'No disponible'}</div></div>
+        </div>
+        <div class="actions">
+          ${tel ? `<a class="action secondary" href="tel:${esc(tel)}">📞 Llamar</a>` : `<button class="secondary" disabled>📞 Sin teléfono</button>`}
+          ${hasCoords ? `<a class="action primary" href="${mapUrl}" target="_blank" rel="noopener">📍 Ver ubicación</a>` : `<button class="secondary" disabled>📍 Sin ubicación</button>`}
+        </div>
+      </div>`;
+  }
+  form.addEventListener('submit',e=>{e.preventDefault();search();});
+})();
+</script>
+</body>
+</html>
